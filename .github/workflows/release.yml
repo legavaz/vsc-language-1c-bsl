@@ -14,12 +14,14 @@ jobs:
           node-version: '16'
       - run: npm install
       - name: Publish to Open VSX Registry
+        if: ${{ secrets.OVSX_TOKEN != '' }}
         uses: HaaLeo/publish-vscode-extension@v2
         id: publishToOpenVSX
         with:
           pat: ${{ secrets.OVSX_TOKEN }}
           skipDuplicate: true
       - name: Publish to Visual Studio Marketplace
+        if: ${{ secrets.VSCE_TOKEN != '' }}
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.VSCE_TOKEN }}
@@ -27,6 +29,7 @@ jobs:
           extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
           skipDuplicate: true
       - name: Upload vsix to release
+        if: ${{ hashFiles('*.vsix') != '' }}
         uses: AButler/upload-release-assets@v4.0
         with:
             files: '*.vsix'
