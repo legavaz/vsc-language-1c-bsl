@@ -3,7 +3,7 @@
   "displayName": "Language 1C (BSL)",
   "description": "Syntax highlighting for 1C:Enterprise 8.",
   "icon": "images/1c-syntax.png",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "publisher": "1c-syntax",
   "galleryBanner": {
     "color": "#0000FF",
@@ -280,6 +280,11 @@
           "description": "Port for BSL Language Server MCP endpoint (Streamable HTTP). Required when languageServerMcpEnabled is true. If empty when MCP is enabled, a warning is shown and BSL LS starts without MCP. To avoid conflicts across multiple VS Code instances, set a distinct port per workspace.",
           "type": "string",
           "default": ""
+        },
+        "language-1c-bsl.analyzeAllFiles": {
+          "description": "Analyze all project files with BSL Language Server. When disabled (default), only the currently opened file is analyzed - cross-file navigation (Go to definition, Find references), workspace symbols and configuration metadata analysis are not available. Changing the setting restarts the BSL Language Server.",
+          "type": "boolean",
+          "default": false
         }
       }
     },

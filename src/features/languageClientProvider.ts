@@ -28,6 +28,10 @@ const SHOW_REFERENCES_COMMAND = `${LANGUAGE_1C_BSL_CONFIG}.languageServer.showRe
 export default class LanguageClientProvider {
     private bslLsReady = false;
     private languageClient: LanguageClient;
+    private context: vscode.ExtensionContext;
+    private binaryName: string;
+    private fileWatcher: vscode.FileSystemWatcher;
+    private traceOutputChannel: vscode.LogOutputChannel;
 
     public async registerLanguageClient(context: vscode.ExtensionContext, status: IStatus, global: Global) {
         const configuration = vscode.workspace.getConfiguration(LANGUAGE_1C_BSL_CONFIG);
@@ -121,6 +125,9 @@ export default class LanguageClientProvider {
 
         const binaryName = this.getBinaryName(languageServerDir);
 
+        this.context = context;
+        this.binaryName = binaryName;
+
         this.languageClient = await this.createLanguageClient(context, binaryName);
         this.languageClient.start();
 
@@ -138,13 +145,7 @@ export default class LanguageClientProvider {
 
         context.subscriptions.push(
             vscode.commands.registerCommand(RESTART_COMMAND, async () => {
-                this.bslLsReady = false;
-                await this.languageClient.stop();
-
-                this.languageClient.start();
-
-                // await this.languageClient.onReady();
-                this.bslLsReady = true;
+                await this.recreateLanguageClient();
             }),
             vscode.commands.registerCommand(RUN_ALL_TESTS_COMMAND, async (args: RunTestArgs) => {
                 terminal.show();    
@@ -195,6 +196,21 @@ export default class LanguageClientProvider {
             )
         );
 
+        // Автоприменение настройки analyzeAllFiles: область анализа фиксируется
+        // при запуске сервера (initialize), поэтому клиент пересоздаётся.
+        context.subscriptions.push(
+            vscode.workspace.onDidChangeConfiguration((event) => {
+                if (!event.affectsConfiguration(`${LANGUAGE_1C_BSL_CONFIG}.analyzeAllFiles`)) {
+                    return;
+                }
+                const configuration = vscode.workspace.getConfiguration(LANGUAGE_1C_BSL_CONFIG);
+                if (!configuration.get<boolean>("languageServerEnabled")) {
+                    return;
+                }
+                void this.recreateLanguageClient();
+            })
+        );
+
         // await this.languageClient.onReady();
         this.bslLsReady = true;
         global.languageServerVersion = installedVersion;
@@ -213,6 +229,21 @@ export default class LanguageClientProvider {
         return this.bslLsReady;
     }
 
+    private async recreateLanguageClient(): Promise<void> {
+        this.bslLsReady = false;
+        if (this.languageClient) {
+            try {
+                await this.languageClient.stop();
+                await this.languageClient.dispose();
+            } catch (error) {
+                console.warn("BSL Language Server restart: stop/dispose error", error);
+            }
+        }
+        this.languageClient = await this.createLanguageClient(this.context, this.binaryName);
+        this.languageClient.start();
+        this.bslLsReady = true;
+    }
+
     private async createLanguageClient(
         context: vscode.ExtensionContext,
         binaryName: string
@@ -229,21 +260,66 @@ export default class LanguageClientProvider {
             debug: executable
         };
 
+        const analyzeAllFiles = Boolean(configuration.get("analyzeAllFiles"));
+
         const clientOptions: LanguageClientOptions = {
             documentSelector: [
                 { scheme: "file", language: "bsl" },
                 { scheme: "untitled", language: "bsl" }
             ],
             synchronize: {
-                fileEvents: vscode.workspace.createFileSystemWatcher("**/*.{os,bsl}")
+                fileEvents: analyzeAllFiles ? this.getFileEventsWatcher(context) : undefined
             },
-            traceOutputChannel: vscode.window.createOutputChannel(
-                "BSL Language Server Trace Log",
-                { log: true }
-            )
+            traceOutputChannel: this.getTraceOutputChannel(context)
         };
 
+        if (!analyzeAllFiles) {
+            // Режим «только текущий файл»: серверу в качестве корня workspace
+            // передаётся синтетическая пустая папка, поэтому он не индексирует
+            // проект и анализирует лишь открытые через LSP документы.
+            clientOptions.workspaceFolder = await this.getSingleFileScopeFolder(context);
+        }
+
         return new LanguageClient("bsl", "BSL Language Server", serverOptions, clientOptions);
+    }
+
+    private getFileEventsWatcher(context: vscode.ExtensionContext): vscode.FileSystemWatcher {
+        if (!this.fileWatcher) {
+            this.fileWatcher = vscode.workspace.createFileSystemWatcher("**/*.{os,bsl}");
+            context.subscriptions.push(this.fileWatcher);
+        }
+        return this.fileWatcher;
+    }
+
+    private getTraceOutputChannel(context: vscode.ExtensionContext): vscode.LogOutputChannel {
+        if (!this.traceOutputChannel) {
+            this.traceOutputChannel = vscode.window.createOutputChannel(
+                "BSL Language Server Trace Log",
+                { log: true }
+            );
+            context.subscriptions.push(this.traceOutputChannel);
+        }
+        return this.traceOutputChannel;
+    }
+
+    private async getSingleFileScopeFolder(
+        context: vscode.ExtensionContext
+    ): Promise<vscode.WorkspaceFolder | undefined> {
+        const scopeDir = Paths.join(context.globalStoragePath, "single-file-scope");
+        if (isOSWindows() && scopeDir.search(/[а-яёА-ЯЁ]/gm) >= 0) {
+            const message = `BSL LS single-file scope dir <${scopeDir}> contains cyrillic letters.
+                Single-file analysis mode is not available, full project analysis will be used.`;
+            console.warn(message);
+            void vscode.window.showWarningMessage(message);
+            return undefined;
+        }
+
+        await fs.ensureDir(scopeDir);
+        return {
+            uri: vscode.Uri.file(scopeDir),
+            name: "BSL LS single-file scope",
+            index: 0
+        };
     }
 
     private async getExecutableJar(

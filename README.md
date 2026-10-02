@@ -51,6 +51,21 @@
   * анализ метаданных [3](#примечание-3)
   * исключение из анализа файлов, находящихся "на поддержке" конфигурации поставщика [3](#примечание-3)
 
+### Область анализа
+
+По умолчанию `BSL Language Server` анализирует **только текущий открытый файл**. Это заметно снижает нагрузку на больших конфигурациях: сервер не индексирует весь проект. Полный анализ всех файлов проекта включается опционально.
+
+Настройка `language-1c-bsl.analyzeAllFiles` (`Ctrl`+`,` → поиск `analyzeAllFiles`):
+
+|Только активный файл (по умолчанию)|Все файлы проекта|
+|---|---|
+|![analyze-all-files-off](images/analyze-all-files-off.png)|![analyze-all-files-on](images/analyze-all-files-on.png)|
+
+* **Выключено (по умолчанию)** — анализируется только активный файл. Недоступны межфайловые возможности: переход к определению в другие модули (`F12`), поиск мест использования по проекту, символы рабочей области (`Ctrl`+`T`), анализ метаданных конфигурации.
+* **Включено** — индексируются и анализируются все файлы проекта (прежнее поведение) со всеми межфайловыми возможностями.
+
+Смена настройки автоматически перезапускает `BSL Language Server` (5–30 секунд). Принудительный перезапуск — команда `Language 1C (BSL): Restart the BSL Language Server`.
+
 ## Прочее
 
 * Запуск скриптов в файлах `.os`/`.bsl` с помощью OneScript - [инструкция](https://github.com/1c-syntax/vsc-language-1c-bsl/wiki/%D0%97%D0%B0%D0%BF%D1%83%D1%81%D0%BA-%D1%81%D0%BA%D1%80%D0%B8%D0%BF%D1%82%D0%BE%D0%B2-.os-.bsl-%D1%81-%D0%BF%D0%BE%D0%BC%D0%BE%D1%89%D1%8C%D1%8E-OneScript)
@@ -97,6 +112,21 @@
 Adds syntax highlighting to \*.bsl и \*.os files in VSC.
 
 Contributions are greatly appreciated. Development is carried in a parent repository [1c-syntax/1c-syntax](https://github.com/1c-syntax/1c-syntax)
+
+### Analysis scope
+
+By default the `BSL Language Server` analyzes **only the currently opened file**, which reduces load on large configurations: the server does not index the whole project. Full project analysis is opt-in.
+
+The `language-1c-bsl.analyzeAllFiles` setting (`Ctrl`+`,` → search `analyzeAllFiles`):
+
+|Current file only (default)|All project files|
+|---|---|
+|![analyze-all-files-off](images/analyze-all-files-off.png)|![analyze-all-files-on](images/analyze-all-files-on.png)|
+
+* **Off (default)** — only the active file is analyzed. Cross-file features are unavailable: Go to definition in other modules (`F12`), project-wide Find references, workspace symbols (`Ctrl`+`T`), configuration metadata analysis.
+* **On** — all project files are indexed and analyzed (previous behavior) with all cross-file features.
+
+Changing the setting automatically restarts the `BSL Language Server` (5–30 seconds). To restart manually use the `Language 1C (BSL): Restart the BSL Language Server` command.
 
 ### Installation
 
